@@ -12,7 +12,7 @@
 [![Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=flat-square&logo=vercel)](https://vercel.com/)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 
-[🌐 Live Demo](https://vectorshift-frontend.vercel.app) · [🐛 Report Bug](https://github.com/firoz1860/vectorshift-frontend/issues) · [✨ Request Feature](https://github.com/firoz1860/vectorshift-frontend/issues)
+[🌐 Live Demo]([https://vectorshift-frontend.vercel.app](https://vectorshift-frontend-one.vercel.app/)) · [🐛 Report Bug](https://github.com/firoz1860/vectorshift-frontend/issues) · [✨ Request Feature](https://github.com/firoz1860/vectorshift-frontend/issues)
 
 </div>
 
