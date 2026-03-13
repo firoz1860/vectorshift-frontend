@@ -1,12 +1,11 @@
-// nodes/noteNode.js  – Node 3 of 5 new nodes
-// A sticky-note style node with no handles – purely for documentation
+// nodes/noteNode.js
 import { useState } from 'react';
-import { BaseNode, NodeField } from './BaseNode';
+import { BaseNode } from './BaseNode';
 import { useStore } from '../store';
 
 export const NoteNode = ({ id, data }) => {
   const [text, setText] = useState(data?.note || 'Add a note here…');
-  const updateNodeField = useStore(s => s.updateNodeField);
+  const updateNodeField = useStore((s) => s.updateNodeField);
 
   return (
     <BaseNode
@@ -22,7 +21,10 @@ export const NoteNode = ({ id, data }) => {
       <textarea
         className="node-textarea node-textarea--note"
         value={text}
-        onChange={e => { setText(e.target.value); updateNodeField(id, 'note', e.target.value); }}
+        onChange={(e) => {
+          setText(e.target.value);
+          updateNodeField(id, 'note', e.target.value);
+        }}
         placeholder="Write a note…"
         rows={4}
       />

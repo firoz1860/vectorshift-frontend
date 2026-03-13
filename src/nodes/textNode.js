@@ -1,7 +1,5 @@
 // nodes/textNode.js
-// Part 3: auto-resize + {{variable}} → dynamic target handles
 import { useState, useEffect } from 'react';
-import { Handle, Position } from 'reactflow';
 import { BaseNode, NodeField } from './BaseNode';
 import { useStore } from '../store';
 
@@ -28,10 +26,10 @@ const calcDims = (text, varCount) => {
 };
 
 export const TextNode = ({ id, data }) => {
-  const [text, setText]         = useState(data?.text || '{{input}}');
-  const [vars, setVars]         = useState([]);
-  const [dims, setDims]         = useState({ w: MIN_W, h: MIN_H });
-  const updateNodeField = useStore((s) => s.updateNodeField);
+  const [text, setText]   = useState(data?.text || '{{input}}');
+  const [vars, setVars]   = useState([]);
+  const [dims, setDims]   = useState({ w: MIN_W, h: MIN_H });
+  const updateNodeField   = useStore((s) => s.updateNodeField);
 
   useEffect(() => {
     const v = extractVars(text);
