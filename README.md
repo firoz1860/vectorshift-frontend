@@ -22,6 +22,8 @@
 
 <div align="center">
 
+![alt text](image.png)
+
 ### Pipeline Canvas
 ![Pipeline Canvas](https://placehold.co/900x500/f0f4ff/6366f1?text=Pipeline+Canvas+—+Drag+%26+Drop+Nodes)
 
