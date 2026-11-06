@@ -1,4 +1,4 @@
-export const shapePath = (type, x, y, w, h) => {
+export const shapePath = (type, x, y, w, h, direction) => {
   switch (type) {
     case 'rectangle':
       return `M ${x} ${y} L ${x + w} ${y} L ${x + w} ${y + h} L ${x} ${y + h} Z`;
@@ -35,8 +35,21 @@ export const shapePath = (type, x, y, w, h) => {
       return `M ${x + s} ${y} L ${x + w - s} ${y} L ${x + w} ${y + h / 2} L ${x + w - s} ${y + h} L ${x + s} ${y + h} L ${x} ${y + h / 2} Z`;
     }
 
-    case 'arrow':
-      return `M ${x} ${y} L ${x + w - 12} ${y} M ${x + w - 12} ${y - 6} L ${x + w} ${y} L ${x + w - 12} ${y + 6}`;
+    case 'arrow': {
+      const dir = direction || 'right';
+      const head = 12;
+      if (dir === 'right')
+        return `M ${x} ${y} L ${x + w - head} ${y} M ${x + w - head} ${y - 6} L ${x + w} ${y} L ${x + w - head} ${y + 6}`;
+      if (dir === 'left')
+        return `M ${x + w} ${y} L ${x + head} ${y} M ${x + head} ${y - 6} L ${x} ${y} L ${x + head} ${y + 6}`;
+      if (dir === 'up')
+        return `M ${x} ${y + h} L ${x} ${y + head} M ${x - 6} ${y + head} L ${x} ${y} L ${x + 6} ${y + head}`;
+      if (dir === 'down')
+        return `M ${x} ${y} L ${x} ${y + h - head} M ${x - 6} ${y + h - head} L ${x} ${y + h} L ${x + 6} ${y + h - head}`;
+      if (dir === 'bidirectional')
+        return `M ${x + 12} ${y - 6} L ${x} ${y} L ${x + 12} ${y + 6} M ${x + w - 12} ${y - 6} L ${x + w} ${y} L ${x + w - 12} ${y + 6} M ${x} ${y} L ${x + w} ${y}`;
+      return `M ${x} ${y} L ${x + w - head} ${y} M ${x + w - head} ${y - 6} L ${x + w} ${y} L ${x + w - head} ${y + 6}`;
+    }
 
     case 'line':
       return `M ${x} ${y} L ${x + w} ${y}`;

@@ -3,7 +3,7 @@ import { nanoid } from 'nanoid';
 import { supabase } from './supabase';
 import { createShape, createPath, createConnection } from './shapes';
 
-const SHAPE_TOOLS = ['rectangle','rounded','circle','cylinder','diamond','parallelogram','cloud','hexagon','arrow','text','sticky'];
+const MAX_HISTORY = 50;
 
 export const useStore = create((set, get) => ({
   elements: [],
@@ -15,6 +15,7 @@ export const useStore = create((set, get) => ({
   fillColor: '#ffffff',
   strokeWidth: 2,
   fontSize: 16,
+  arrowDirection: 'right',
 
   pan: { x: 0, y: 0 },
   zoom: 1,
@@ -27,29 +28,74 @@ export const useStore = create((set, get) => ({
 
   showTemplates: false,
 
+  history: ['[]'],
+  historyIndex: 0,
+
+  pushHistory: () => {
+    const { elements, history, historyIndex } = get();
+    const newHist = history.slice(0, historyIndex + 1);
+    newHist.push(JSON.stringify(elements));
+    if (newHist.length > MAX_HISTORY) newHist.shift();
+    set({ history: newHist, historyIndex: newHist.length - 1 });
+  },
+
+  undo: () => {
+    const { history, historyIndex } = get();
+    if (historyIndex <= 0) return;
+    const idx = historyIndex - 1;
+    set({
+      elements: JSON.parse(history[idx]),
+      historyIndex: idx,
+      selectedId: null,
+      editingTextId: null,
+      boardModified: true,
+    });
+  },
+
+  redo: () => {
+    const { history, historyIndex } = get();
+    if (historyIndex >= history.length - 1) return;
+    const idx = historyIndex + 1;
+    set({
+      elements: JSON.parse(history[idx]),
+      historyIndex: idx,
+      selectedId: null,
+      editingTextId: null,
+      boardModified: true,
+    });
+  },
+
+  canUndo: () => get().historyIndex > 0,
+  canRedo: () => get().historyIndex < get().history.length - 1,
+
   setTool: (tool) => set({ tool, selectedId: tool === 'select' ? get().selectedId : null }),
   setStrokeColor: (c) => set({ strokeColor: c }),
   setFillColor: (c) => set({ fillColor: c }),
   setStrokeWidth: (w) => set({ strokeWidth: w }),
   setFontSize: (s) => set({ fontSize: s }),
+  setArrowDirection: (d) => set({ arrowDirection: d }),
 
   addShapeAt: (type, x, y) => {
     const el = createShape(type, x, y, {
       stroke: get().strokeColor,
       fill: get().fillColor,
       fontSize: get().fontSize,
+      ...(type === 'arrow' ? { direction: get().arrowDirection } : {}),
     });
     set((s) => ({ elements: [...s.elements, el], selectedId: el.id, boardModified: true }));
+    get().pushHistory();
     return el;
   },
   addPath: (points) => {
     const p = createPath(points, get().strokeColor, get().strokeWidth);
     set((s) => ({ elements: [...s.elements, p], boardModified: true }));
+    get().pushHistory();
     return p;
   },
   addConnection: (fromId, toId) => {
     const c = createConnection(fromId, toId);
     set((s) => ({ elements: [...s.elements, c], boardModified: true }));
+    get().pushHistory();
     return c;
   },
   updateElement: (id, patch) =>
@@ -57,16 +103,21 @@ export const useStore = create((set, get) => ({
       elements: s.elements.map((e) => (e.id === id ? { ...e, ...patch } : e)),
       boardModified: true,
     })),
-  deleteElement: (id) =>
+  deleteElement: (id) => {
     set((s) => ({
       elements: s.elements.filter((e) => e.id !== id && e.fromId !== id && e.toId !== id),
       selectedId: s.selectedId === id ? null : s.selectedId,
       boardModified: true,
-    })),
-  clearCanvas: () =>
-    set({ elements: [], selectedId: null, editingTextId: null, boardModified: true }),
+    }));
+    get().pushHistory();
+  },
+  clearCanvas: () => {
+    set({ elements: [], selectedId: null, editingTextId: null, boardModified: true });
+    get().pushHistory();
+  },
   selectElement: (id) => set({ selectedId: id, editingTextId: null }),
   setEditingText: (id) => set({ editingTextId: id }),
+  commitEdit: () => get().pushHistory(),
 
   setPan: (pan) => set({ pan }),
   setZoom: (zoom) => set({ zoom }),
@@ -90,11 +141,7 @@ export const useStore = create((set, get) => ({
 
   saveBoard: async (title, category = 'Custom') => {
     const { elements, currentBoardId } = get();
-    const payload = {
-      title,
-      category,
-      canvas_data: { elements },
-    };
+    const payload = { title, category, canvas_data: { elements } };
 
     if (currentBoardId) {
       const { data, error } = await supabase
@@ -134,13 +181,16 @@ export const useStore = create((set, get) => ({
       .eq('id', id)
       .single();
     if (error) return { error };
+    const els = data.canvas_data?.elements || [];
     set({
-      elements: data.canvas_data?.elements || [],
+      elements: els,
       currentBoardId: data.id,
       currentBoardTitle: data.title,
       selectedId: null,
       editingTextId: null,
       boardModified: false,
+      history: [JSON.stringify(els)],
+      historyIndex: 0,
     });
     return { data };
   },
@@ -159,22 +209,22 @@ export const useStore = create((set, get) => ({
 
   newBoard: () =>
     set({
-      elements: [],
-      selectedId: null,
-      editingTextId: null,
-      currentBoardId: null,
-      currentBoardTitle: '',
-      boardModified: false,
+      elements: [], selectedId: null, editingTextId: null,
+      currentBoardId: null, currentBoardTitle: '', boardModified: false,
+      history: ['[]'], historyIndex: 0,
     }),
 
   loadTemplate: (template) => {
+    const els = template.elements.map((el) => ({ ...el, id: nanoid(8) }));
     set({
-      elements: template.elements.map((el) => ({ ...el, id: nanoid(8) })),
+      elements: els,
       currentBoardId: null,
       currentBoardTitle: template.title || '',
       selectedId: null,
       editingTextId: null,
       boardModified: true,
+      history: [JSON.stringify(els)],
+      historyIndex: 0,
     });
   },
 }));

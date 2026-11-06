@@ -4,7 +4,8 @@ import {
   MousePointer2, Pen, Eraser, Hand, Type, StickyNote,
   Square, SquareDashed, Circle, Database, Diamond,
   Cloud, Hexagon, ArrowRight, Slash,
-  Trash2, Save, FilePlus, Layers, Download, Minus, Plus, Maximize,
+  Trash2, Save, FilePlus, Layers, Download,
+  Undo2, Redo2, ArrowUp, ArrowDown, ArrowLeft, ArrowRightLeft,
 } from 'lucide-react';
 
 const TOOLS = [
@@ -28,6 +29,14 @@ const SHAPES = [
   { tool: 'sticky', icon: StickyNote, label: 'Sticky Note' },
 ];
 
+const ARROW_DIRS = [
+  { dir: 'right', icon: ArrowRight, label: 'Right' },
+  { dir: 'left', icon: ArrowLeft, label: 'Left' },
+  { dir: 'up', icon: ArrowUp, label: 'Up' },
+  { dir: 'down', icon: ArrowDown, label: 'Down' },
+  { dir: 'bidirectional', icon: ArrowRightLeft, label: 'Both' },
+];
+
 export default function Toolbar({ onSave, onNew, onExport }) {
   const s = useStore();
 
@@ -39,6 +48,17 @@ export default function Toolbar({ onSave, onNew, onExport }) {
         </div>
         <span className="toolbar__title">Whiteboard</span>
         <span className="toolbar__subtitle">LLD / HLD</span>
+      </div>
+
+      <div className="toolbar__divider" />
+
+      <div className="toolbar__group">
+        <button className="tool-btn" onClick={() => s.undo()} disabled={!s.canUndo()} title="Undo (Ctrl+Z)">
+          <Undo2 size={18} />
+        </button>
+        <button className="tool-btn" onClick={() => s.redo()} disabled={!s.canRedo()} title="Redo (Ctrl+Y)">
+          <Redo2 size={18} />
+        </button>
       </div>
 
       <div className="toolbar__divider" />
@@ -70,6 +90,24 @@ export default function Toolbar({ onSave, onNew, onExport }) {
           </button>
         ))}
       </div>
+
+      {s.tool === 'arrow' && (
+        <>
+          <div className="toolbar__divider" />
+          <div className="toolbar__group">
+            {ARROW_DIRS.map(({ dir, icon: Icon, label }) => (
+              <button
+                key={dir}
+                className={`tool-btn ${s.arrowDirection === dir ? 'tool-btn--active' : ''}`}
+                onClick={() => s.setArrowDirection(dir)}
+                title={label}
+              >
+                <Icon size={16} />
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       <div className="toolbar__divider" />
 

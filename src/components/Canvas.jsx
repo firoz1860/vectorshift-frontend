@@ -5,6 +5,20 @@ import { Minus, Plus, Maximize } from 'lucide-react';
 
 const SHAPE_TOOLS = ['rectangle','rounded','circle','cylinder','diamond','parallelogram','cloud','hexagon','arrow','text','sticky'];
 
+function smoothPath(points) {
+  if (!points || points.length === 0) return '';
+  if (points.length < 3) return 'M ' + points.map((p) => `${p.x} ${p.y}`).join(' L ');
+  let d = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 1; i < points.length - 1; i++) {
+    const xc = (points[i].x + points[i + 1].x) / 2;
+    const yc = (points[i].y + points[i + 1].y) / 2;
+    d += ` Q ${points[i].x} ${points[i].y} ${xc} ${yc}`;
+  }
+  const last = points[points.length - 1];
+  d += ` L ${last.x} ${last.y}`;
+  return d;
+}
+
 export default function Canvas() {
   const svgRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -78,7 +92,11 @@ export default function Canvas() {
     }
 
     if (isDrawing && currentPath) {
-      setCurrentPath({ ...currentPath, points: [...currentPath.points, { x, y }] });
+      const lastPt = currentPath.points[currentPath.points.length - 1];
+      const dist = Math.hypot(x - lastPt.x, y - lastPt.y);
+      if (dist > 2) {
+        setCurrentPath({ ...currentPath, points: [...currentPath.points, { x, y }] });
+      }
       return;
     }
 
@@ -102,7 +120,10 @@ export default function Canvas() {
       setIsDrawing(false);
     }
     if (panState) setPanState(null);
-    if (dragState) setDragState(null);
+    if (dragState) {
+      s.commitEdit();
+      setDragState(null);
+    }
   };
 
   const handleShapeMouseDown = (e, el) => {
@@ -122,8 +143,8 @@ export default function Canvas() {
 
   const handleShapeDoubleClick = (e, el) => {
     e.stopPropagation();
-    const editableTypes = ['text','sticky','rectangle','rounded','circle','cylinder','diamond','parallelogram','cloud','hexagon'];
-    if (editableTypes.includes(el.type)) {
+    const editable = ['text','sticky','rectangle','rounded','circle','cylinder','diamond','parallelogram','cloud','hexagon'];
+    if (editable.includes(el.type)) {
       s.setEditingText(el.id);
     }
   };
@@ -152,6 +173,14 @@ export default function Canvas() {
       s.setEditingText(null);
       s.setTool('select');
     }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+      e.preventDefault();
+      s.undo();
+    }
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+      e.preventDefault();
+      s.redo();
+    }
   }, [s]);
 
   useEffect(() => {
@@ -166,18 +195,13 @@ export default function Canvas() {
     pan: 'cursor-grab',
   };
 
-  const pathToString = (points) => {
-    if (!points || points.length === 0) return '';
-    return 'M ' + points.map((p) => `${p.x} ${p.y}`).join(' L ');
-  };
-
   const renderShape = (el) => {
     if (el.type === 'pen') {
       return (
         <path
           key={el.id}
           data-element-id={el.id}
-          d={pathToString(el.points)}
+          d={smoothPath(el.points)}
           stroke={el.stroke}
           strokeWidth={el.strokeWidth}
           fill="none"
@@ -210,7 +234,7 @@ export default function Canvas() {
     }
 
     const isTextType = el.type === 'text';
-    const path = shapePath(el.type, el.x, el.y, el.w, el.h);
+    const path = shapePath(el.type, el.x, el.y, el.w, el.h, el.direction);
 
     return (
       <g
@@ -230,7 +254,7 @@ export default function Canvas() {
           </text>
         ) : (
           <>
-            <path d={path} stroke={el.stroke} strokeWidth={el.strokeWidth} fill={el.fill} strokeLinejoin="round" />
+            <path d={path} stroke={el.stroke} strokeWidth={el.strokeWidth} fill={el.fill} strokeLinejoin="round" strokeLinecap="round" />
             {el.label && (
               <text x={el.x + el.w / 2} y={el.y + el.h / 2 + (el.fontSize || 14) / 3} textAnchor="middle" fill={el.stroke} fontSize={el.fontSize || 14} fontFamily="Inter, sans-serif" style={{ userSelect: 'none' }}>
                 {el.label}
@@ -256,9 +280,9 @@ export default function Canvas() {
           autoFocus
           value={el.label}
           onChange={(e) => s.updateElement(el.id, { label: e.target.value })}
-          onBlur={() => s.setEditingText(null)}
+          onBlur={() => { s.commitEdit(); s.setEditingText(null); }}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); s.setEditingText(null); }
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); s.commitEdit(); s.setEditingText(null); }
           }}
           style={{
             width: '100%', height: '100%', border: '1px solid #3b82f6', borderRadius: '4px',
@@ -301,7 +325,7 @@ export default function Canvas() {
         <g transform={`translate(${s.pan.x}, ${s.pan.y}) scale(${s.zoom})`}>
           {s.elements.map(renderShape)}
           {currentPath && (
-            <path d={pathToString(currentPath.points)} stroke={currentPath.stroke} strokeWidth={currentPath.strokeWidth} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            <path d={smoothPath(currentPath.points)} stroke={currentPath.stroke} strokeWidth={currentPath.strokeWidth} fill="none" strokeLinecap="round" strokeLinejoin="round" />
           )}
           {renderEditingText()}
         </g>

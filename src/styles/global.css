@@ -107,6 +107,8 @@ body {
 }
 .tool-btn:hover { background: var(--surface-2); color: var(--text); }
 .tool-btn--active { background: var(--primary-light); color: var(--primary); border-color: var(--primary); }
+.tool-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.tool-btn:disabled:hover { background: transparent; color: var(--text-2); }
 
 .toolbar__colors { display: flex; gap: 12px; flex-shrink: 0; }
 .color-group { display: flex; flex-direction: column; gap: 2px; }
