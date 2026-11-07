@@ -14,6 +14,21 @@ export const FILL_COLORS = [
 
 export const FONT_SIZES = [12, 14, 16, 20, 24, 32];
 
+export const SHAPE_DEFAULTS = {
+  rectangle: { w: 180, h: 80, label: 'Service' },
+  rounded: { w: 180, h: 80, label: 'Component' },
+  circle: { w: 80, h: 80, label: '' },
+  cylinder: { w: 120, h: 100, label: 'Database' },
+  diamond: { w: 140, h: 100, label: 'Decision' },
+  parallelogram: { w: 180, h: 70, label: 'Data' },
+  cloud: { w: 160, h: 90, label: 'Cloud' },
+  hexagon: { w: 160, h: 80, label: 'Process' },
+  arrow: { w: 120, h: 0, label: '' },
+  line: { w: 120, h: 0, label: '' },
+  text: { w: 120, h: 24, label: 'Text' },
+  sticky: { w: 140, h: 120, label: '' },
+};
+
 export const createShape = (type, x, y, overrides = {}) => {
   const base = {
     id: genId(),
@@ -27,22 +42,13 @@ export const createShape = (type, x, y, overrides = {}) => {
     fontSize: 14,
   };
 
-  const defaults = {
-    rectangle: { w: 180, h: 80, label: 'Service' },
-    rounded: { w: 180, h: 80, label: 'Component' },
-    circle: { w: 80, h: 80, label: '' },
-    cylinder: { w: 120, h: 100, label: 'Database' },
-    diamond: { w: 140, h: 100, label: 'Decision' },
-    parallelogram: { w: 180, h: 70, label: 'Data' },
-    cloud: { w: 160, h: 90, label: 'Cloud' },
-    hexagon: { w: 160, h: 80, label: 'Process' },
-    arrow: { w: 120, h: 0, label: '' },
-    line: { w: 120, h: 0, label: '' },
-    text: { w: 120, h: 24, label: 'Text', fill: '#1e293b' },
-    sticky: { w: 140, h: 120, label: '', fill: '#fef9c3', stroke: '#facc15' },
+  return {
+    ...base,
+    ...(SHAPE_DEFAULTS[type] || {}),
+    ...(type === 'text' ? { fill: '#1e293b' } : {}),
+    ...(type === 'sticky' ? { fill: '#fef9c3', stroke: '#facc15' } : {}),
+    ...overrides,
   };
-
-  return { ...base, ...(defaults[type] || {}), ...overrides };
 };
 
 export const createPath = (points, color, width) => ({

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../lib/store';
 import { TEMPLATES, TEMPLATE_CATEGORIES } from '../lib/templates';
+import { shapePath } from '../lib/svgPaths';
 import { X, Sparkles, FileText } from 'lucide-react';
 
 export default function TemplatesModal() {
@@ -78,9 +79,10 @@ function TemplatePreview({ template }) {
           );
         }
         if (el.type === 'pen' || el.type === 'connection') return null;
+        const path = shapePath(el.type, el.x, el.y, el.w || 80, el.h || 40, el.direction);
         return (
           <g key={el.id}>
-            <rect x={el.x} y={el.y} width={el.w || 80} height={el.h || 40} rx={el.type === 'rounded' ? 8 : 0} fill={el.fill || '#f1f5f9'} stroke={el.stroke || '#64748b'} strokeWidth={1} />
+            <path d={path} fill={el.fill || '#f1f5f9'} stroke={el.stroke || '#64748b'} strokeWidth={1} strokeLinejoin="round" strokeLinecap="round" />
             {el.label && (
               <text x={el.x + (el.w || 80) / 2} y={el.y + (el.h || 40) / 2 + 3} textAnchor="middle" fill={el.stroke || '#1e293b'} fontSize={6} fontFamily="Inter, sans-serif">{el.label}</text>
             )}

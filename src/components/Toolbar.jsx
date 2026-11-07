@@ -30,6 +30,7 @@ const SHAPES = [
 ];
 
 const ARROW_DIRS = [
+  { dir: 'free', icon: ArrowRight, label: 'Free drag (any direction)' },
   { dir: 'right', icon: ArrowRight, label: 'Right' },
   { dir: 'left', icon: ArrowLeft, label: 'Left' },
   { dir: 'up', icon: ArrowUp, label: 'Up' },

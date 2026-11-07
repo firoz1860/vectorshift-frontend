@@ -5,17 +5,21 @@ import { Minus, Plus, Maximize } from 'lucide-react';
 
 const SHAPE_TOOLS = ['rectangle','rounded','circle','cylinder','diamond','parallelogram','cloud','hexagon','arrow','text','sticky'];
 
-function smoothPath(points) {
+function catmullRomPath(points) {
   if (!points || points.length === 0) return '';
   if (points.length < 3) return 'M ' + points.map((p) => `${p.x} ${p.y}`).join(' L ');
   let d = `M ${points[0].x} ${points[0].y}`;
-  for (let i = 1; i < points.length - 1; i++) {
-    const xc = (points[i].x + points[i + 1].x) / 2;
-    const yc = (points[i].y + points[i + 1].y) / 2;
-    d += ` Q ${points[i].x} ${points[i].y} ${xc} ${yc}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i === 0 ? i : i - 1];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[i + 2 < points.length ? i + 2 : points.length - 1];
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${p2.x} ${p2.y}`;
   }
-  const last = points[points.length - 1];
-  d += ` L ${last.x} ${last.y}`;
   return d;
 }
 
@@ -25,19 +29,21 @@ export default function Canvas() {
   const [currentPath, setCurrentPath] = useState(null);
   const [dragState, setDragState] = useState(null);
   const [panState, setPanState] = useState(null);
+  const [drawState, setDrawState] = useState(null);
+  const [resizeState, setResizeState] = useState(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
   const s = useStore();
 
-  const toCanvasCoords = useCallback((e) => {
+  const toCanvasCoords = useCallback((clientX, clientY) => {
     const rect = svgRef.current.getBoundingClientRect();
-    const x = (e.clientX - rect.left - s.pan.x) / s.zoom;
-    const y = (e.clientY - rect.top - s.pan.y) / s.zoom;
+    const x = (clientX - rect.left - s.pan.x) / s.zoom;
+    const y = (clientY - rect.top - s.pan.y) / s.zoom;
     return { x, y };
   }, [s.pan, s.zoom]);
 
-  const handleMouseDown = (e) => {
-    const { x, y } = toCanvasCoords(e);
+  const handlePointerDown = (e) => {
+    const { x, y } = toCanvasCoords(e.clientX, e.clientY);
 
     if (s.tool === 'pan' || e.button === 1) {
       setPanState({ startX: e.clientX, startY: e.clientY, panX: s.pan.x, panY: s.pan.y });
@@ -63,11 +69,10 @@ export default function Canvas() {
     }
 
     if (SHAPE_TOOLS.includes(s.tool)) {
-      const el = s.addShapeAt(s.tool, x, y);
+      const el = s.startShape(s.tool, x, y);
       if (s.tool === 'text' || s.tool === 'sticky') {
-        s.setEditingText(el.id);
       }
-      s.setTool('select');
+      setDrawState({ id: el.id, startX: x, startY: y, tool: s.tool });
       return;
     }
 
@@ -79,8 +84,8 @@ export default function Canvas() {
     }
   };
 
-  const handleMouseMove = (e) => {
-    const { x, y } = toCanvasCoords(e);
+  const handlePointerMove = (e) => {
+    const { x, y } = toCanvasCoords(e.clientX, e.clientY);
     setMousePos({ x, y });
 
     if (panState) {
@@ -94,9 +99,54 @@ export default function Canvas() {
     if (isDrawing && currentPath) {
       const lastPt = currentPath.points[currentPath.points.length - 1];
       const dist = Math.hypot(x - lastPt.x, y - lastPt.y);
-      if (dist > 2) {
+      if (dist > 1.5) {
         setCurrentPath({ ...currentPath, points: [...currentPath.points, { x, y }] });
       }
+      return;
+    }
+
+    if (drawState) {
+      const w = x - drawState.startX;
+      const h = y - drawState.startY;
+      if (drawState.tool === 'arrow') {
+        s.resizeShape(drawState.id, drawState.startX, drawState.startY, w, h);
+      } else if (drawState.tool === 'line') {
+        s.resizeShape(drawState.id, drawState.startX, drawState.startY, w, 0);
+      } else {
+        let nx = drawState.startX;
+        let ny = drawState.startY;
+        let nw = w;
+        let nh = h;
+        if (nw < 0) { nx = x; nw = -nw; }
+        if (nh < 0) { ny = y; nh = -nh; }
+        if (drawState.tool === 'circle') {
+          const size = Math.max(nw, nh);
+          s.resizeShape(drawState.id, nx, ny, size, size);
+        } else {
+          s.resizeShape(drawState.id, nx, ny, nw, nh);
+        }
+      }
+      return;
+    }
+
+    if (resizeState) {
+      const dx = x - resizeState.startX;
+      const dy = y - resizeState.startY;
+      let nx = resizeState.origX;
+      let ny = resizeState.origY;
+      let nw = resizeState.origW + (resizeState.handle.includes('r') ? dx : 0);
+      let nh = resizeState.origH + (resizeState.handle.includes('b') ? dy : 0);
+      if (resizeState.handle.includes('l')) {
+        nx = resizeState.origX + dx;
+        nw = resizeState.origW - dx;
+      }
+      if (resizeState.handle.includes('t')) {
+        ny = resizeState.origY + dy;
+        nh = resizeState.origH - dy;
+      }
+      if (nw < 10) nw = 10;
+      if (nh < 10) nh = 10;
+      s.resizeShape(resizeState.id, nx, ny, nw, nh);
       return;
     }
 
@@ -111,7 +161,7 @@ export default function Canvas() {
     }
   };
 
-  const handleMouseUp = () => {
+  const handlePointerUp = () => {
     if (isDrawing && currentPath) {
       if (currentPath.points.length > 1) {
         s.addPath(currentPath.points);
@@ -120,9 +170,18 @@ export default function Canvas() {
       setIsDrawing(false);
     }
     if (panState) setPanState(null);
+    if (drawState) {
+      s.finishShape(drawState.id);
+      setDrawState(null);
+      s.setTool('select');
+    }
     if (dragState) {
       s.commitEdit();
       setDragState(null);
+    }
+    if (resizeState) {
+      s.commitEdit();
+      setResizeState(null);
     }
   };
 
@@ -133,12 +192,27 @@ export default function Canvas() {
       return;
     }
     if (s.tool === 'select' || s.tool === 'pan') {
-      const { x, y } = toCanvasCoords(e);
+      const { x, y } = toCanvasCoords(e.clientX, e.clientY);
       s.selectElement(el.id);
       if (el.type !== 'pen' && el.type !== 'connection') {
         setDragState({ id: el.id, startX: x, startY: y, origX: el.x, origY: el.y });
       }
     }
+  };
+
+  const handleResizeHandleMouseDown = (e, el, handle) => {
+    e.stopPropagation();
+    const { x, y } = toCanvasCoords(e.clientX, e.clientY);
+    setResizeState({
+      id: el.id,
+      startX: x,
+      startY: y,
+      origX: el.x,
+      origY: el.y,
+      origW: el.w,
+      origH: el.h,
+      handle,
+    });
   };
 
   const handleShapeDoubleClick = (e, el) => {
@@ -195,13 +269,38 @@ export default function Canvas() {
     pan: 'cursor-grab',
   };
 
+  const renderResizeHandles = (el) => {
+    if (s.selectedId !== el.id) return null;
+    if (el.type === 'text' || el.type === 'pen' || el.type === 'connection') return null;
+    const handles = [
+      { handle: 'tl', x: el.x - 6, y: el.y - 6, cursor: 'nwse-resize' },
+      { handle: 'tr', x: el.x + el.w - 4, y: el.y - 6, cursor: 'nesw-resize' },
+      { handle: 'bl', x: el.x - 6, y: el.y + el.h - 4, cursor: 'nesw-resize' },
+      { handle: 'br', x: el.x + el.w - 4, y: el.y + el.h - 4, cursor: 'nwse-resize' },
+    ];
+    return handles.map((h) => (
+      <rect
+        key={h.handle}
+        x={h.x}
+        y={h.y}
+        width={10}
+        height={10}
+        fill="#3b82f6"
+        stroke="#fff"
+        strokeWidth={1.5}
+        style={{ cursor: h.cursor }}
+        onMouseDown={(e) => handleResizeHandleMouseDown(e, el, h.handle)}
+      />
+    ));
+  };
+
   const renderShape = (el) => {
     if (el.type === 'pen') {
       return (
         <path
           key={el.id}
           data-element-id={el.id}
-          d={smoothPath(el.points)}
+          d={catmullRomPath(el.points)}
           stroke={el.stroke}
           strokeWidth={el.strokeWidth}
           fill="none"
@@ -244,8 +343,11 @@ export default function Canvas() {
         onDoubleClick={(e) => handleShapeDoubleClick(e, el)}
         style={s.selectedId === el.id ? { filter: 'drop-shadow(0 0 3px rgba(59,130,246,.3))' } : {}}
       >
-        {el.type !== 'text' && (
+        {el.type !== 'text' && el.type !== 'arrow' && el.type !== 'line' && (
           <rect x={el.x - 4} y={el.y - 4} width={el.w + 8} height={el.h + 8} fill="transparent" />
+        )}
+        {el.type === 'arrow' && (
+          <rect x={Math.min(el.x, el.x + el.w) - 8} y={Math.min(el.y, el.y + el.h) - 8} width={Math.abs(el.w) + 16} height={Math.abs(el.h) + 16} fill="transparent" />
         )}
 
         {isTextType ? (
@@ -263,9 +365,13 @@ export default function Canvas() {
           </>
         )}
 
-        {s.selectedId === el.id && el.type !== 'text' && (
+        {s.selectedId === el.id && el.type !== 'text' && el.type !== 'arrow' && el.type !== 'line' && (
           <rect x={el.x - 6} y={el.y - 6} width={el.w + 12} height={el.h + 12} fill="none" stroke="#3b82f6" strokeWidth={1.5} strokeDasharray="5 3" rx={4} style={{ pointerEvents: 'none' }} />
         )}
+        {s.selectedId === el.id && (el.type === 'arrow' || el.type === 'line') && (
+          <rect x={Math.min(el.x, el.x + el.w) - 6} y={Math.min(el.y, el.y + el.h) - 6} width={Math.abs(el.w) + 12} height={Math.abs(el.h) + 12} fill="none" stroke="#3b82f6" strokeWidth={1.5} strokeDasharray="5 3" rx={4} style={{ pointerEvents: 'none' }} />
+        )}
+        {renderResizeHandles(el)}
       </g>
     );
   };
@@ -301,12 +407,12 @@ export default function Canvas() {
       <svg
         ref={svgRef}
         className={`whiteboard-svg ${cursorClass[s.tool] || 'cursor-default'}`}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerUp}
         onWheel={handleWheel}
-        style={{ width: '100%', height: '100%', display: 'block' }}
+        style={{ width: '100%', height: '100%', display: 'block', touchAction: 'none' }}
       >
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -325,7 +431,7 @@ export default function Canvas() {
         <g transform={`translate(${s.pan.x}, ${s.pan.y}) scale(${s.zoom})`}>
           {s.elements.map(renderShape)}
           {currentPath && (
-            <path d={smoothPath(currentPath.points)} stroke={currentPath.stroke} strokeWidth={currentPath.strokeWidth} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            <path d={catmullRomPath(currentPath.points)} stroke={currentPath.stroke} strokeWidth={currentPath.strokeWidth} fill="none" strokeLinecap="round" strokeLinejoin="round" />
           )}
           {renderEditingText()}
         </g>

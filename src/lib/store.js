@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { nanoid } from 'nanoid';
 import { supabase } from './supabase';
-import { createShape, createPath, createConnection } from './shapes';
+import { createShape, createPath, createConnection, SHAPE_DEFAULTS } from './shapes';
 
 const MAX_HISTORY = 50;
 
@@ -85,6 +85,52 @@ export const useStore = create((set, get) => ({
     set((s) => ({ elements: [...s.elements, el], selectedId: el.id, boardModified: true }));
     get().pushHistory();
     return el;
+  },
+  startShape: (type, x, y) => {
+    const isArrow = type === 'arrow';
+    const arrowDir = isArrow ? (get().arrowDirection === 'bidirectional' ? 'free-bi' : 'free') : undefined;
+    const el = createShape(type, x, y, {
+      stroke: get().strokeColor,
+      fill: get().fillColor,
+      fontSize: get().fontSize,
+      w: 0,
+      h: 0,
+      label: '',
+      ...(isArrow ? { direction: arrowDir } : {}),
+    });
+    set((s) => ({ elements: [...s.elements, el], selectedId: el.id, boardModified: true }));
+    return el;
+  },
+  resizeShape: (id, x, y, w, h) =>
+    set((s) => ({
+      elements: s.elements.map((e) => {
+        if (e.id !== id) return e;
+        if (e.type === 'arrow' || e.type === 'line') {
+          return { ...e, x, y, w, h };
+        }
+        return { ...e, x, y, w: Math.abs(w), h: Math.abs(h) };
+      }),
+      boardModified: true,
+    })),
+  finishShape: (id) => {
+    const el = get().elements.find((e) => e.id === id);
+    if (!el) return;
+    const defs = SHAPE_DEFAULTS[el.type] || {};
+    let label = el.label;
+    if (!label) label = defs.label || '';
+    if (el.type === 'arrow' && Math.abs(el.w) < 5 && Math.abs(el.h) < 5) {
+      get().deleteElement(id);
+      return;
+    }
+    if (Math.abs(el.w) < 5 && Math.abs(el.h) < 5) {
+      get().updateElement(id, { w: defs.w || 120, h: defs.h || 80, label });
+      get().pushHistory();
+      return;
+    }
+    if (el.type === 'text' || el.type === 'sticky') {
+      get().setEditingText(id);
+    }
+    get().pushHistory();
   },
   addPath: (points) => {
     const p = createPath(points, get().strokeColor, get().strokeWidth);
